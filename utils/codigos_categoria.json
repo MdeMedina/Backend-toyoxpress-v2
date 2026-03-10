@@ -1,0 +1,172 @@
+[
+  {
+    "CATEGORIA": "BUJES MESETA",
+    "ID JAVIER": "01",
+    "ID WC": 428
+  },
+  {
+    "CATEGORIA": "ENCENDIDO & ELECTRICOS",
+    "ID JAVIER": "02",
+    "ID WC": 419
+  },
+  {
+    "CATEGORIA": "EMPACADURAS MOTOR",
+    "ID JAVIER": "03",
+    "ID WC": 404
+  },
+  {
+    "CATEGORIA": "FILTROS AIRE ACEITE",
+    "ID JAVIER": "04",
+    "ID WC": 405
+  },
+  {
+    "CATEGORIA": "BASES MOTOR CAJA",
+    "ID JAVIER": "05",
+    "ID WC": 415
+  },
+  {
+    "CATEGORIA": "CONCHAS AXIAL MOTOR&VALVULAS",
+    "ID JAVIER": "06",
+    "ID WC": 412
+  },
+  {
+    "CATEGORIA": "ANILLOS PISTON  MOTOR",
+    "ID JAVIER": "07",
+    "ID WC": 416
+  },
+  {
+    "CATEGORIA": "DAMPER & POLEAS",
+    "ID JAVIER": "08",
+    "ID WC": 417
+  },
+  {
+    "CATEGORIA": "CORREAS TIEMPO KIT & TENSORES",
+    "ID JAVIER": "09",
+    "ID WC": 402
+  },
+  {
+    "CATEGORIA": "BOMBAS ACEITE & COMPONENTES",
+    "ID JAVIER": "10",
+    "ID WC": 413
+  },
+  {
+    "CATEGORIA": "BOMBA AGUA & COMPONENTES",
+    "ID JAVIER": "11",
+    "ID WC": 418
+  },
+  {
+    "CATEGORIA": "BOMBAS GASOLINA-PILAS & FILTRO",
+    "ID JAVIER": "12",
+    "ID WC": 406
+  },
+  {
+    "CATEGORIA": "CLUTCH & COMPONENTES",
+    "ID JAVIER": "13",
+    "ID WC": 421
+  },
+  {
+    "CATEGORIA": "KIT CAJETIN & BOMBA",
+    "ID JAVIER": "14",
+    "ID WC": 410
+  },
+  {
+    "CATEGORIA": "FRENOS",
+    "ID JAVIER": "15",
+    "ID WC": 411
+  },
+  {
+    "CATEGORIA": "CRUCETAS & CHUMACERAS",
+    "ID JAVIER": "16",
+    "ID WC": 407
+  },
+  {
+    "CATEGORIA": "CUBOS & MOZOS",
+    "ID JAVIER": "17",
+    "ID WC": 423
+  },
+  {
+    "CATEGORIA": "MUÑONES",
+    "ID JAVIER": "18",
+    "ID WC": 759
+  },
+  {
+    "CATEGORIA": "TERMINALES ROTULAS & BARRAS",
+    "ID JAVIER": "19",
+    "ID WC": 427
+  },
+  {
+    "CATEGORIA": "ESTOPERAS MOTOR",
+    "ID JAVIER": "20",
+    "ID WC": 403
+  },
+  {
+    "CATEGORIA": "ESTOPERAS TREN MOTRIZ",
+    "ID JAVIER": "21",
+    "ID WC": 431
+  },
+  {
+    "CATEGORIA": "SUSPENSION & GOMAS",
+    "ID JAVIER": "22",
+    "ID WC": 408
+  },
+  {
+    "CATEGORIA": "ROLINERAS RUEDA",
+    "ID JAVIER": "23",
+    "ID WC": 420
+  },
+  {
+    "CATEGORIA": "ROLINERAS TRANSMISION",
+    "ID JAVIER": "24",
+    "ID WC": 424
+  },
+  {
+    "CATEGORIA": "VARIOS",
+    "ID JAVIER": "25",
+    "ID WC": 409
+  },
+  {
+    "CATEGORIA": "KIT TUERCAS ESPARRAGOS",
+    "ID JAVIER": "26",
+    "ID WC": 425
+  },
+  {
+    "CATEGORIA": "VALVULAS VVTI / PCV/SENSORES",
+    "ID JAVIER": "27",
+    "ID WC": 414
+  },
+  {
+    "CATEGORIA": "GUAYAS & SENSORES VELOCIDAD",
+    "ID JAVIER": "28",
+    "ID WC": 422
+  },
+  {
+    "CATEGORIA": "VALVULAS PRESION & ELECTROS",
+    "ID JAVIER": "29",
+    "ID WC": 430
+  },
+  {
+    "CATEGORIA": "TOYOTA ORIGINAL",
+    "ID JAVIER": "30",
+    "ID WC": 401
+  },
+  {
+    "CATEGORIA": "CARROCERIA",
+    "ID JAVIER": "31",
+    "ID WC": 429
+  },
+  {
+    "CATEGORIA": "ELECTROVENTILADORES",
+    "ID JAVIER": "32",
+    "ID WC": 680
+  },
+  {
+    "CATEGORIA": "FLUIDOS&ACEITES",
+    "ID JAVIER": "33",
+    "ID WC": 771
+  },
+  {
+    "CATEGORIA": "OFERTA",
+    "ID JAVIER": "99",
+    "ID WC": 777
+  }
+]
