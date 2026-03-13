@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { crearPedido, getPedidos } from '../controllers/pedidos';
 import { validateJwt } from '../middleware/auth';
+import { verificarHorario } from '../middleware/verificarHorario';
 
 const router = Router();
 
@@ -8,6 +9,6 @@ const router = Router();
 router.use(validateJwt);
 
 router.get('/', getPedidos);
-router.post('/', crearPedido);
+router.post('/', verificarHorario, crearPedido);
 
 export default router;

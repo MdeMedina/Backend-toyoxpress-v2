@@ -2,6 +2,8 @@ import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
 import { Pedido, IPedidoPayload } from '../models/Pedido';
 import { Reserva } from '../models/Reserva';
 import { Cliente } from '../models/Cliente';
@@ -69,65 +71,141 @@ function generarPDFBuffer(
     total: number,
     correlativo: number,
     vendedor: string,
-    hora: string
+    hora: string,
+    notaCorreo: string
 ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-        const doc = new PDFDocument({ margin: 40, size: 'A4' });
+        const doc = new PDFDocument({ margins: { top: 28, bottom: 0, left: 28, right: 28 }, size: 'A4' });
         const chunks: Buffer[] = [];
         doc.on('data', (c: Buffer) => chunks.push(c));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
-        // ── Header ──
-        doc.fontSize(16).font('Helvetica-Bold').text('ToyoXpress', 40, 40);
-        doc.fontSize(11).font('Helvetica').text(`Pedido #${correlativo}`, 40, 60);
-        doc.text(`Fecha: ${hora || new Date().toLocaleString('es-VE')}`, 40, 75);
-        doc.text(`Vendedor: ${vendedor}`, 40, 90);
+        // ── Load Logo ──
+        let logoBuffer: Buffer | null = null;
+        try {
+            logoBuffer = fs.readFileSync(path.join(__dirname, '../assets/toyoxpress-logo.png'));
+        } catch (e) {
+            logger.warn('⚠️ No se encontró el logo para el PDF');
+        }
 
-        doc.moveTo(40, 108).lineTo(555, 108).stroke();
+        // ── Header ──
+        const startY = 24;
+        if (logoBuffer) {
+            doc.image(logoBuffer, 28, startY, { height: 40 });
+        }
+
+        doc.fontSize(15).font('Helvetica-Bold').fillColor('#0f172a').text('PEDIDO', 0, startY + 5, { align: 'right' });
+        doc.fontSize(7.5).font('Helvetica').fillColor('#64748b').text(`Fecha: ${hora || new Date().toLocaleString('es-VE')}`, { align: 'right' });
+        doc.text(`Vendedor: ${vendedor}`, { align: 'right' });
+
+        doc.moveTo(28, startY + 52).lineTo(567, startY + 52).lineWidth(1.5).strokeColor('#1a1a1a').stroke();
 
         // ── Client info ──
-        doc.fontSize(10).font('Helvetica-Bold').text('Datos del Cliente', 40, 116);
-        doc.font('Helvetica').fontSize(9);
-        doc.text(`Razón Social: ${cliente.Nombre || ''}`, 40, 130);
-        doc.text(`RIF: ${cliente.Rif || ''}`, 40, 143);
-        doc.text(`Teléfono: ${cliente.Telefonos || ''}`, 40, 156);
-        if (cliente['Correo Electronico']) {
-            doc.text(`Correo: ${cliente['Correo Electronico']}`, 40, 169);
+        let y = startY + 68;
+
+        const infoRows = [
+            ['Razón Social:', cliente.Nombre || ''],
+            ['RIF:', cliente.Rif || ''],
+            cliente.Telefonos ? ['Teléfono:', cliente.Telefonos] : null,
+            cliente['Correo Electronico'] ? ['Correo:', cliente['Correo Electronico']] : null,
+            cliente.Ciudad ? ['Ciudad:', cliente.Ciudad] : null,
+            cliente['Tipo de Precio'] ? ['Tipo de Precio:', cliente['Tipo de Precio']] : null
+        ].filter(Boolean) as [string, string][];
+
+        const boxHeight = 24 + (infoRows.length * 12);
+
+        // Background box
+        doc.roundedRect(28, y, 539, boxHeight, 4).fillAndStroke('#f8fafc', '#e2e8f0');
+        doc.fontSize(7).font('Helvetica-Bold').fillColor('#64748b').text('DATOS DEL CLIENTE', 36, y + 8);
+
+        let rowY = y + 20;
+        for (const [label, val] of infoRows) {
+            doc.font('Helvetica').fillColor('#64748b').fontSize(7.5).text(label, 36, rowY, { width: 70 });
+            doc.font('Helvetica-Bold').fillColor('#0f172a').text(val, 106, rowY);
+            rowY += 12;
         }
 
-        doc.moveTo(40, 185).lineTo(555, 185).stroke();
+        y += boxHeight + 14;
 
         // ── Products table header ──
-        const tableTop = 195;
-        doc.fontSize(8).font('Helvetica-Bold');
-        doc.text('Código', 40, tableTop, { width: 80 });
-        doc.text('Descripción', 120, tableTop, { width: 190 });
-        doc.text('Marca', 310, tableTop, { width: 70 });
-        doc.text('Cant.', 380, tableTop, { width: 40 });
-        doc.text('P.U.', 420, tableTop, { width: 55 });
-        doc.text('Total', 475, tableTop, { width: 70 });
-        doc.moveTo(40, tableTop + 12).lineTo(555, tableTop + 12).stroke();
+        doc.roundedRect(28, y, 539, 16, 3).fill('#0f172a');
+        doc.fillColor('#ffffff').fontSize(7).font('Helvetica-Bold');
+        const thY = y + 5;
+
+        // Column X positions
+        const c1 = 32, c2 = 102, c3 = 307, c4 = 382, c5 = 430, c6 = 494;
+
+        doc.text('CÓDIGO', c1, thY);
+        doc.text('DESCRIPCIÓN', c2, thY);
+        doc.text('MARCA', c3, thY);
+        doc.text('CANT.', c4, thY, { width: 48, align: 'center' });
+        doc.text('P.U. $', c5, thY, { width: 64, align: 'right' });
+        doc.text('TOTAL $', c6, thY, { width: 70, align: 'right' });
+
+        y += 18;
 
         // ── Product rows ──
-        let y = tableTop + 18;
+        let isEven = false;
         doc.font('Helvetica').fontSize(7.5);
+
         for (const p of productos) {
-            doc.text(p.codigo, 40, y, { width: 80 });
-            doc.text(p.nombre, 120, y, { width: 190 });
-            doc.text(p.marca || '', 310, y, { width: 70 });
-            doc.text(String(p.cantidad), 380, y, { width: 40 });
-            doc.text(p.precio.toFixed(2), 420, y, { width: 55 });
-            doc.text(p.total.toFixed(2), 475, y, { width: 70 });
-            y += 14;
-            if (y > 720) { doc.addPage(); y = 40; }
+            // New page check
+            if (y > 750) {
+                doc.addPage();
+                y = 28;
+                isEven = false;
+            }
+
+            if (isEven) {
+                doc.rect(28, y, 539, 16).fill('#f8fafc');
+            }
+            const ty = y + 5;
+
+            doc.fontSize(7).fillColor('#64748b').text(p.codigo, c1, ty, { width: 66, height: 10, lineBreak: false });
+            doc.fontSize(7.5).fillColor('#1e293b').text(p.nombre, c2, ty, { width: 200, height: 10, lineBreak: false });
+            doc.fontSize(7).fillColor('#64748b').text(p.marca || '—', c3, ty, { width: 70, height: 10, lineBreak: false });
+            doc.fontSize(7.5).fillColor('#1e293b').text(String(p.cantidad), c4, ty, { width: 48, align: 'center' });
+            doc.text(p.precio.toFixed(2), c5, ty, { width: 64, align: 'right' });
+            doc.text(p.total.toFixed(2), c6, ty, { width: 70, align: 'right' });
+
+            y += 16;
+            doc.moveTo(28, y).lineTo(567, y).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
+            isEven = !isEven;
         }
 
+        y += 10;
+
         // ── Totals ──
-        doc.moveTo(40, y + 4).lineTo(555, y + 4).stroke();
-        doc.fontSize(10).font('Helvetica-Bold').text(`Total: $${total.toFixed(2)}`, 40, y + 12);
-        doc.text(`Líneas: ${productos.length}`, 300, y + 12);
-        doc.text(`Items: ${productos.reduce((s, p) => s + p.cantidad, 0)}`, 430, y + 12);
+        const totalItems = productos.reduce((s, p) => s + p.cantidad, 0);
+
+        doc.roundedRect(300, y, 80, 24, 4).fill('#f1f5f9');
+        doc.fillColor('#64748b').fontSize(6.5).font('Helvetica-Bold').text('LÍNEAS', 300, y + 4, { width: 80, align: 'center' });
+        doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold').text(String(productos.length), 300, y + 12, { width: 80, align: 'center' });
+
+        doc.roundedRect(390, y, 80, 24, 4).fill('#f1f5f9');
+        doc.fillColor('#64748b').fontSize(6.5).font('Helvetica-Bold').text('ITEMS', 390, y + 4, { width: 80, align: 'center' });
+        doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold').text(String(totalItems), 390, y + 12, { width: 80, align: 'center' });
+
+        doc.roundedRect(480, y, 87, 24, 4).fill('#0f172a');
+        doc.fillColor('#94a3b8').fontSize(6.5).font('Helvetica-Bold').text('TOTAL', 480, y + 4, { width: 87, align: 'center' });
+        doc.fillColor('#ffffff').fontSize(11).font('Helvetica-Bold').text('$' + total.toFixed(2), 480, y + 12, { width: 87, align: 'center' });
+
+        y += 34;
+
+        // ── Nota del Pedido ──
+        if (notaCorreo) {
+            if (y > 720) { doc.addPage(); y = 28; }
+            doc.roundedRect(28, y, 539, 40, 3).stroke('#e2e8f0');
+            doc.fillColor('#64748b').fontSize(7).font('Helvetica-Bold').text('NOTA DEL PEDIDO', 36, y + 8);
+            doc.fillColor('#334155').fontSize(8).font('Helvetica').text(notaCorreo, 36, y + 20, { width: 520, lineGap: 2 });
+            y += 54;
+        }
+
+        // ── Footer ──
+        doc.moveTo(28, 800).lineTo(567, 800).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
+        doc.fillColor('#94a3b8').fontSize(6.5).font('Helvetica').text('TOYOXPRESS — Repuestos y Accesorios', 28, 808);
+        doc.text(`Documento generado el ${hora}`, 0, 808, { align: 'right' });
 
         doc.end();
     });
@@ -135,11 +213,13 @@ function generarPDFBuffer(
 
 // ─── Mailer ───────────────────────────────────────────────────────────────────
 
-async function enviarEmails(pdfBuffer: Buffer, correlativo: number, clienteNombre: string, notaCorreo: string, extraEmails: string[]) {
+async function enviarEmails(pdfBuffer: Buffer, correlativo: number, clienteNombre: string, notaPedido: string) {
     if (!process.env.SMTP_HOST) {
         logger.warn('⚠️  SMTP no configurado — email omitido.');
         return;
     }
+
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER || '';
 
     const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -148,22 +228,77 @@ async function enviarEmails(pdfBuffer: Buffer, correlativo: number, clienteNombr
         auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     });
 
-    // Build recipients: fixed CC + dynamic extras
+    // ── Verify SMTP connection & auth ─────────────────────────────────────
+    try {
+        await transporter.verify();
+        logger.info(`✅ SMTP OK — conectado a ${process.env.SMTP_HOST}:${process.env.SMTP_PORT} como ${process.env.SMTP_USER}`);
+    } catch (verifyErr: any) {
+        logger.error(`❌ SMTP AUTH FAILED — ${process.env.SMTP_HOST}:${process.env.SMTP_PORT} usuario=${process.env.SMTP_USER} → ${verifyErr.message}`);
+        logger.error('   → Revisa SMTP_HOST, SMTP_PORT, SMTP_USER y SMTP_PASS en el .env');
+        return; // Abort — no point trying to send if auth fails
+    }
+
+    // Build recipients: strictly EMAIL_CC (do not include client email)
     const fixed = (process.env.EMAIL_CC || 'pedidostoyoxpress@gmail.com,hectorumerez@gmail.com,toyoxpressca@gmail.com')
         .split(',').map(s => s.trim()).filter(Boolean);
-    const all = [...new Set([...fixed, ...extraEmails])];
+    const all = [...new Set(fixed)];
+
+    if (all.length === 0) {
+        logger.warn('⚠️  No hay destinatarios EMAIL_CC configurados. Se omite el envío de correo interno.');
+        return;
+    }
 
     const subject = `Pedido #${correlativo} — ${clienteNombre}`;
-    const text = `${notaCorreo || ''}\n\nPedido #${correlativo} para ${clienteNombre}`;
+
+    // Add Nota a Bodega section if it exists
+    const notaHtml = notaPedido ? `
+        <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 16px; margin-bottom: 24px; border-radius: 0 4px 4px 0;">
+            <p style="font-size: 13px; font-weight: 600; color: #a16207; margin: 0 0 4px 0; text-transform: uppercase;">Mensaje a Bodega:</p>
+            <p style="font-size: 14px; color: #854d0e; margin: 0;">${notaPedido.replace(/\n/g, '<br>')}</p>
+        </div>
+    ` : '';
+
+    const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #334155; max-width: 600px; margin: 0 auto; padding: 24px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+            <img src="cid:toyoxpress-logo" alt="ToyoXpress" style="max-height: 48px; width: auto;">
+        </div>
+        <p style="font-size: 15px; margin-bottom: 16px;">Hola,</p>
+        <p style="font-size: 15px; line-height: 1.5; margin-bottom: 24px;">
+            Se ha generado un nuevo pedido en <strong>Toyoxpress.com</strong> para el cliente <strong>${clienteNombre}</strong>.
+            Adjuntamos en este correo el archivo PDF con el comprobante completo.
+        </p>
+
+        ${notaHtml}
+
+        <p style="font-size: 15px; line-height: 1.5; margin-bottom: 32px;">
+            Si tienes alguna duda, puedes responder a este correo o escribirnos a <a href="mailto:contacto@toyoxpress.com" style="color: #2563eb; text-decoration: none;">contacto@toyoxpress.com</a>.
+        </p>
+        <p style="font-size: 15px; line-height: 1.5; color: #475569;">
+            Saludos cordiales,<br>
+            Equipo Toyoxpress
+        </p>
+    </div>
+    `;
 
     for (const to of all) {
         try {
             await transporter.sendMail({
-                from: process.env.SMTP_USER,
+                from: from,
                 to,
                 subject,
-                text,
-                attachments: [{ filename: `Pedido_${correlativo}.pdf`, content: pdfBuffer }],
+                html,
+                attachments: [
+                    {
+                        filename: 'toyoxpress-logo.png',
+                        path: path.join(__dirname, '../assets/toyoxpress-logo.png'),
+                        cid: 'toyoxpress-logo' // inline image referenced in html
+                    },
+                    {
+                        filename: `Pedido_${correlativo}.pdf`,
+                        content: pdfBuffer
+                    }
+                ],
             });
             logger.info(`📧 Email enviado → ${to}`);
         } catch (e: any) {
@@ -233,12 +368,10 @@ export async function procesarPedido({ pedidoId }: { pedidoId: string }) {
         logger.info(`[PedidoWorker] Orden WooCommerce creada — Correlativo #${correlativo}`);
 
         // Step 4: Generate single PDF buffer (shared for email + archive)
-        const pdfBuffer = await generarPDFBuffer(cliente, productos, total, correlativo, vendedor, hora || new Date().toLocaleString('es-VE'));
+        const pdfBuffer = await generarPDFBuffer(cliente, productos, total, correlativo, vendedor, hora || new Date().toLocaleString('es-VE'), notaCorreo || '');
 
-        // Step 5: Send emails (non-blocking per recipient)
-        const extraEmails = emails || [];
-        if (clienteEmail) extraEmails.push(clienteEmail);
-        await enviarEmails(pdfBuffer, correlativo, cliente.Nombre, notaCorreo || '', extraEmails);
+        // Step 5: Send emails (Only internal CCs, client email handled by WooCommerce)
+        await enviarEmails(pdfBuffer, correlativo, cliente.Nombre, notaPedido || '');
 
         // Step 6: Decrement stock (only after WooCommerce success)
         await Promise.all(productos.map(p => actualizarStock(p.codigo, p.cantidad)));

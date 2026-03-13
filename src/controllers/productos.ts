@@ -93,3 +93,81 @@ export const getLastSync = async (req: Request, res: Response) => {
     }
 };
 
+// @route   GET /api/productos/inventario
+// @desc    Inventario con filtros. Soporta paginación opcional (?page=&limit=) para la tabla
+//          y export completo (sin page/limit) para PDF/Excel.
+// @access  Privado (JWT)
+export const getInventario = async (req: Request, res: Response) => {
+    try {
+        const search = (req.query.search as string || "").trim();
+        const marca = (req.query.marca as string || "").trim();
+        const soloConStock = req.query.soloConStock === "true";
+        const page = req.query.page ? parseInt(req.query.page as string) : null;
+        const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
+
+        const query: any = {};
+
+        if (search) {
+            query.$or = [
+                { Nombre: { $regex: search, $options: "i" } },
+                { "Código": { $regex: search, $options: "i" } },
+                { name: { $regex: search, $options: "i" } },
+                { sku: { $regex: search, $options: "i" } },
+            ];
+        }
+        if (marca) query.Marca = { $regex: `^${marca}$`, $options: "i" };
+        if (soloConStock) query["Existencia Actual"] = { $gt: 0 };
+
+        const selectFields = {
+            sku: 1, "Código": 1, Nombre: 1, Marca: 1, Ref: 1,
+            "Existencia Actual": 1, "Precio Minimo": 1, "Precio Mayor": 1,
+            name: 1, stock_quantity: 1, price: 1,
+        };
+        const sortOptions: Record<string, 1 | -1> = { Marca: 1, Nombre: 1 };
+
+        // ── Paginated mode (preview table) ────────────────────────────────
+        if (page !== null && limit !== null) {
+            const total = await Producto.countDocuments(query);
+            const skip = (page - 1) * limit;
+            const data = await Producto.find(query)
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(limit)
+                .select(selectFields)
+                .lean();
+
+            // Compute brands only on first page to avoid re-running on every page turn
+            let marcasDisponibles: string[] = [];
+            if (page === 1) {
+                const allForBrands = await Producto.find({}).distinct("Marca");
+                marcasDisponibles = allForBrands.filter(Boolean).sort();
+            }
+
+            return res.status(200).json({
+                success: true,
+                count: data.length,
+                total,
+                totalPages: Math.ceil(total / limit),
+                page,
+                marcasDisponibles,
+                data,
+            });
+        }
+
+        // ── Full export mode (no pagination) ─────────────────────────────
+        const data = await Producto.find(query)
+            .sort(sortOptions)
+            .select(selectFields)
+            .lean();
+
+        return res.status(200).json({
+            success: true,
+            count: data.length,
+            data,
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error en getInventario:", error);
+        return res.status(500).json({ success: false, message: "Error al obtener inventario." });
+    }
+};

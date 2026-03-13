@@ -67,6 +67,8 @@ import productosRoutes from './routes/productos';
 import workerRoutes from './routes/worker';
 import clientesRoutes from './routes/clientes';
 import pedidosRoutes from './routes/pedidos';
+import configuracionRoutes from './routes/configuracion';
+import dashboardRoutes from './routes/dashboard';
 
 // API Routes
 app.use('/api/movimientos', movimientoRoutes);
@@ -78,6 +80,8 @@ app.use('/api/productos', productosRoutes);
 app.use('/api/worker', workerRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/pedidos', pedidosRoutes);
+app.use('/api/configuracion', configuracionRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Hello World Route
 app.get('/health', (req: Request, res: Response) => {
@@ -90,28 +94,55 @@ io.on('connection', async (socket) => {
 
     try {
         const THIRTY_MINUTES_AGO = new Date(Date.now() - 30 * 60 * 1000);
+        const TWO_MINUTES_AGO = new Date(Date.now() - 2 * 60 * 1000);
 
-        // Auto-expire any stuck jobs older than 30 minutes
+        // ── Layer 1: Bulk-expire jobs older than 30 minutes ────────────────
         await SyncJob.updateMany(
             { status: { $in: ['pending', 'processing'] }, updatedAt: { $lt: THIRTY_MINUTES_AGO } },
             { $set: { status: 'completed' } }
         );
 
-        // Only push a job to the new connection if it was recently updated (within 30 min)
+        // ── Layer 2: Expire jobs stuck with no progress for > 2 minutes ───
+        // These are jobs where SQS messages were never delivered to this backend
+        // (Lambda / tunnel issue). createdAt and updatedAt are the same on creation,
+        // so we check both.
+        await SyncJob.updateMany(
+            {
+                status: { $in: ['pending', 'processing'] },
+                chunksProcessed: 0,
+                createdAt: { $lt: TWO_MINUTES_AGO },
+            },
+            { $set: { status: 'completed' } }
+        );
+
+        // ── Find the most recent genuinely active job ──────────────────────
         const activeJob = await SyncJob.findOne({
             status: { $in: ['pending', 'processing'] },
             updatedAt: { $gte: THIRTY_MINUTES_AGO }
         }).sort({ createdAt: -1 }).lean();
 
         if (activeJob) {
-            socket.emit('sync_progress', {
-                jobId: activeJob._id,
-                totalChunks: activeJob.totalChunks,
-                chunksProcessed: activeJob.chunksProcessed,
-                totalSKUs: activeJob.totalSKUs,
-                status: activeJob.status,
-                metrics: activeJob.metrics
-            });
+            // ── Layer 3: chunksProcessed reached totalChunks but status wasn't
+            //    updated due to a race condition between save() and emit()
+            const isActuallyDone =
+                (activeJob as any).totalChunks > 0 &&
+                (activeJob as any).chunksProcessed >= (activeJob as any).totalChunks;
+
+            if (isActuallyDone) {
+                await SyncJob.findByIdAndUpdate(activeJob._id, { $set: { status: 'completed' } });
+                logger.info(`[Socket] Job ${activeJob._id} auto-corregido a completed (todos los chunks procesados).`);
+                // Don't send anything — the job is done
+            } else {
+                // Genuinely in-progress: send current state to the new client
+                socket.emit('sync_progress', {
+                    jobId: activeJob._id,
+                    totalChunks: (activeJob as any).totalChunks,
+                    chunksProcessed: (activeJob as any).chunksProcessed,
+                    totalSKUs: activeJob.totalSKUs,
+                    status: activeJob.status,
+                    metrics: activeJob.metrics,
+                });
+            }
         }
     } catch (e) {
         logger.error("Error sending initial sync state", e);
