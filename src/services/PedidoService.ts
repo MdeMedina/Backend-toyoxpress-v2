@@ -222,20 +222,26 @@ async function enviarEmails(pdfBuffer: Buffer, correlativo: number, clienteNombr
     const from = process.env.SMTP_FROM || process.env.SMTP_USER || '';
 
     const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
+        host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
         port: Number(process.env.SMTP_PORT || 587),
-        secure: process.env.SMTP_SECURE === 'true',
+        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587
         auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+        connectionTimeout: 10000, // 10s
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
+        debug: true, // Enable debug in logs
     });
 
     // ── Verify SMTP connection & auth ─────────────────────────────────────
     try {
+        logger.info(`📧 [SMTP] Intentando conectar a ${process.env.SMTP_HOST || 'smtp-relay.brevo.com'}:${process.env.SMTP_PORT || 587}...`);
         await transporter.verify();
-        logger.info(`✅ SMTP OK — conectado a ${process.env.SMTP_HOST}:${process.env.SMTP_PORT} como ${process.env.SMTP_USER}`);
+        logger.info(`✅ [SMTP] Conexión establecida y autenticada correctamente`);
     } catch (verifyErr: any) {
-        logger.error(`❌ SMTP AUTH FAILED — ${process.env.SMTP_HOST}:${process.env.SMTP_PORT} usuario=${process.env.SMTP_USER} → ${verifyErr.message}`);
-        logger.error('   → Revisa SMTP_HOST, SMTP_PORT, SMTP_USER y SMTP_PASS en el .env');
-        return; // Abort — no point trying to send if auth fails
+        logger.error(`❌ [SMTP] Error de autenticación o conexión: ${verifyErr.message}`);
+        logger.error(`   → Host: ${process.env.SMTP_HOST}, Puerto: ${process.env.SMTP_PORT}, User: ${process.env.SMTP_USER}`);
+        logger.warn('   → TIP: Si el puerto 587 falló, intenta con el 465 y SMTP_SECURE=true en el .env');
+        return;
     }
 
     // Build recipients: strictly EMAIL_CC (do not include client email)

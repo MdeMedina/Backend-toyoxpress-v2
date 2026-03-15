@@ -5,9 +5,21 @@ import mongoose from 'mongoose';
 import { createServer } from 'http';
 import { Server } from 'socket.io'; // V2 Centralized WebSockets
 import winston from 'winston';
+import dns from 'dns';
 import { SyncJob } from './models/SyncJob';
 
 dotenv.config();
+
+// DNS Debugging for Hostinger
+dns.lookup('google.com', (err, address, family) => {
+    if (err) logger.error('❌ [DNS DEBUG] Failed to resolve google.com:', err);
+    else logger.info(`✅ [DNS DEBUG] google.com resolved to: ${address} (IPv${family})`);
+});
+
+dns.lookup('smtp-relay.brevo.com', (err, address, family) => {
+    if (err) logger.error('❌ [DNS DEBUG] Failed to resolve smtp-relay.brevo.com:', err);
+    else logger.info(`✅ [DNS DEBUG] smtp-relay.brevo.com resolved to: ${address} (IPv${family})`);
+});
 
 const app = express();
 const httpServer = createServer(app);
@@ -161,13 +173,22 @@ io.on('connection', async (socket) => {
 
 // Database Connection & Server Start
 const MONGO_URI = process.env.MONGO_DEV || 'mongodb://127.0.0.1:27017/toyoxpress';
-mongoose.connect(MONGO_URI, { family: 4 })
+
+logger.info(`[DB] Intentando conectar a MongoDB...`);
+
+mongoose.connect(MONGO_URI, {
+    serverSelectionTimeoutMS: 10000, // Wait 10s for DNS/Selection
+})
     .then(() => {
-        logger.info('Connected to MongoDB V2 Successfully (IPv4)');
+        logger.info('✅ [DB] Conectado a MongoDB V2 con éxito');
         httpServer.listen(PORT, () => {
-            logger.info(`API V2 listening on port ${PORT}`);
+            logger.info(`🚀 [SERVER] API V2 escuchando en puerto ${PORT}`);
         });
     })
     .catch((err) => {
-        logger.error('Failed to connect to MongoDB', err);
+        logger.error('❌ [DB] Error crítico al conectar a MongoDB:', err);
+        // Optionally listen anyway to at least show the health check
+        httpServer.listen(PORT, () => {
+            logger.warn(`⚠️ [SERVER] Iniciado SIN conexión a DB en puerto ${PORT}`);
+        });
     });
