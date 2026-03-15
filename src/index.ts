@@ -1,3 +1,22 @@
+import fs from 'fs';
+import path from 'path';
+
+// 🔥 TRAMPA SÍNCRONA DE ERRORES FATALES 🔥
+const crashLogPath = path.join(__dirname, '../crash.log');
+
+// Escribe esto al instante apenas el archivo es leído
+fs.writeFileSync(crashLogPath, `\n--- [${new Date().toISOString()}] INTENTO DE ARRANQUE ---\n`, { flag: 'a' });
+
+// Atrapa cualquier error que mate la app y lo escribe a la fuerza
+process.on('uncaughtException', (err) => {
+    fs.writeFileSync(crashLogPath, `💥 ERROR FATAL (Exception): ${err.message}\n${err.stack}\n`, { flag: 'a' });
+    process.exit(1); // Deja que muera, pero ya tenemos el log
+});
+
+process.on('unhandledRejection', (reason) => {
+    fs.writeFileSync(crashLogPath, `💥 ERROR FATAL (Rejection): ${reason}\n`, { flag: 'a' });
+});
+
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
