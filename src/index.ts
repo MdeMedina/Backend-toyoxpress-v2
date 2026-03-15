@@ -43,6 +43,12 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 }));
 
+// Request Logger (Diagnostics)
+app.use((req, res, next) => {
+    logger.info(`[${req.method}] ${req.originalUrl} - IP: ${req.ip}`);
+    next();
+});
+
 // Performance Logger Middleware
 app.use((req, res, next) => {
     const start = process.hrtime.bigint();
@@ -155,9 +161,9 @@ io.on('connection', async (socket) => {
 
 // Database Connection & Server Start
 const MONGO_URI = process.env.MONGO_DEV || 'mongodb://127.0.0.1:27017/toyoxpress';
-mongoose.connect(MONGO_URI)
+mongoose.connect(MONGO_URI, { family: 4 })
     .then(() => {
-        logger.info('Connected to MongoDB V2 Successfully');
+        logger.info('Connected to MongoDB V2 Successfully (IPv4)');
         httpServer.listen(PORT, () => {
             logger.info(`API V2 listening on port ${PORT}`);
         });

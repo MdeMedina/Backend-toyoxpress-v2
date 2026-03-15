@@ -322,12 +322,16 @@ export async function procesarPedido({ pedidoId }: { pedidoId: string }) {
         return;
     }
 
+    logger.info(`[PedidoWorker] >>> INICIANDO PROCESAMIENTO: ${pedidoId}`);
+
     const { cliente, vendedor, productos, total, notaPedido, notaCorreo, emails, hora } = pedido.payload;
 
     try {
         // Step 2: Atomic correlativo
         const correlativo = await getNextCorrelativo();
-        logger.info(`[PedidoWorker] Procesando pedido ${pedidoId} — Correlativo #${correlativo}`);
+        logger.info(`[PedidoWorker] [${pedidoId}] Correlativo asignado: #${correlativo}`);
+
+        logger.info(`[PedidoWorker] [${pedidoId}] Conectando con WooCommerce...`);
 
         // Step 3: Create order in WooCommerce (proper await — throws on failure)
         const WooCommerce = new WooCommerceRestApi({
@@ -365,15 +369,20 @@ export async function procesarPedido({ pedidoId }: { pedidoId: string }) {
 
         // ← If this throws, the catch block marks the order as 'error' and stock is NOT touched
         await WooCommerce.post('orders', orderPayload);
-        logger.info(`[PedidoWorker] Orden WooCommerce creada — Correlativo #${correlativo}`);
+        logger.info(`[PedidoWorker] [${pedidoId}] Orden WooCommerce creada OK (#${correlativo})`);
+
+        logger.info(`[PedidoWorker] [${pedidoId}] Generando PDF...`);
 
         // Step 4: Generate single PDF buffer (shared for email + archive)
         const pdfBuffer = await generarPDFBuffer(cliente, productos, total, correlativo, vendedor, hora || new Date().toLocaleString('es-VE'), notaCorreo || '');
 
         // Step 5: Send emails (Only internal CCs, client email handled by WooCommerce)
+        logger.info(`[PedidoWorker] [${pedidoId}] Enviando emails...`);
         await enviarEmails(pdfBuffer, correlativo, cliente.Nombre, notaPedido || '');
+        logger.info(`[PedidoWorker] [${pedidoId}] Emails enviados OK`);
 
         // Step 6: Decrement stock (only after WooCommerce success)
+        logger.info(`[PedidoWorker] [${pedidoId}] Actualizando stock local...`);
         await Promise.all(productos.map(p => actualizarStock(p.codigo, p.cantidad)));
 
         // Step 7: Cancel reservations
