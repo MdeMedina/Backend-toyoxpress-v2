@@ -1,0 +1,22 @@
+name: Recibir y Sincronizar
+
+on:
+  repository_dispatch:
+    types: [original_updated]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del fork
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Sincronizar con Upstream
+        run: |
+          git remote add upstream https://github.com/MdeMedina/Backend-toyoxpress-v2.git
+          git fetch upstream
+          git checkout main
+          git merge upstream/main
+          git push origin main
