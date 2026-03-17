@@ -236,14 +236,14 @@ mongoose.connect(MONGO_URI, {
 })
     .then(() => {
         logger.info('✅ [DB] Conectado a MongoDB V2 con éxito');
-        httpServer.listen(PORT, () => {
-            logger.info(`🚀 [SERVER] API V2 escuchando en puerto ${PORT}`);
+        httpServer.listen(Number(PORT), '0.0.0.0', () => {
+            logger.info(`🚀 [SERVER] API V2 escuchando en puerto ${PORT} en 0.0.0.0`);
         });
     })
     .catch((err) => {
         logger.error('❌ [DB] Error crítico al conectar a MongoDB:', err);
         // Optionally listen anyway to at least show the health check
-        httpServer.listen(PORT, () => {
-            logger.warn(`⚠️ [SERVER] Iniciado SIN conexión a DB en puerto ${PORT}`);
+        httpServer.listen(Number(PORT), '0.0.0.0', () => {
+            logger.warn(`⚠️ [SERVER] Iniciado SIN conexión a DB en puerto ${PORT} en 0.0.0.0`);
         });
     });
