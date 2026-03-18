@@ -9,11 +9,13 @@ fs.writeFileSync(crashLogPath, `\n--- [${new Date().toISOString()}] INTENTO DE A
 
 // Atrapa cualquier error que mate la app y lo escribe a la fuerza
 process.on('uncaughtException', (err) => {
+    console.error('💥 ERROR FATAL (Exception):', err);
     fs.writeFileSync(crashLogPath, `💥 ERROR FATAL (Exception): ${err.message}\n${err.stack}\n`, { flag: 'a' });
-    process.exit(1); // Deja que muera, pero ya tenemos el log
+    process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
+    console.error('💥 ERROR FATAL (Rejection):', reason);
     fs.writeFileSync(crashLogPath, `💥 ERROR FATAL (Rejection): ${reason}\n`, { flag: 'a' });
 });
 
@@ -29,6 +31,26 @@ import dns from 'dns';
 import { SyncJob } from './models/SyncJob';
 
 dotenv.config();
+
+// Logger Setup (MUST BE BEFORE DNS LOOKUPS)
+export const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.Console({
+            format: winston.format.simple(),
+        }),
+        new winston.transports.DailyRotateFile({
+            filename: 'logs/app-%DATE%.log',
+            datePattern: 'YYYY-MM-DD',
+            maxFiles: '2d',
+            zippedArchive: true,
+        })
+    ],
+});
 
 // DNS Debugging for Hostinger
 dns.lookup('google.com', (err, address, family) => {
@@ -59,25 +81,6 @@ export const io = new Server(httpServer, {
     pingInterval: 25000  // Intervalo entre pings
 });
 
-// Logger Setup
-export const logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-    ),
-    transports: [
-        new winston.transports.Console({
-            format: winston.format.simple(),
-        }),
-        new winston.transports.DailyRotateFile({
-            filename: 'logs/app-%DATE%.log',
-            datePattern: 'YYYY-MM-DD',
-            maxFiles: '2d',
-            zippedArchive: true,
-        })
-    ],
-});
 
 
 // Global Middlewares
@@ -89,6 +92,9 @@ app.use(cors({
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Exponer la carpeta assets de forma estática
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // Request Logger (Diagnostics)
 app.use((req, res, next) => {
@@ -145,21 +151,6 @@ app.get('/health', (req: Request, res: Response) => {
     res.status(200).json({ status: 'ok', message: 'ToyoXpress API V2 Running' });
 });
 
-// Serve logo from assets (resilient path check)
-app.get('/api/logo', (req: Request, res: Response) => {
-    const paths = [
-        path.join(__dirname, 'assets/toyoxpress-logo.png'),
-        path.join(__dirname, '../src/assets/toyoxpress-logo.png'),
-        '/Users/MiguelMedina/Desktop/Miguel/toyoxpress/Backend-toyoxpress-v2/src/assets/toyoxpress-logo.png'
-    ];
-
-    for (const p of paths) {
-        if (fs.existsSync(p)) {
-            return res.sendFile(p);
-        }
-    }
-    res.status(404).send('Logo not found');
-});
 
 // Websocket Events
 io.on('connection', async (socket) => {
