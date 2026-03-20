@@ -81,7 +81,6 @@ function generarPDFBuffer(
         doc.on('error', reject);
 
         // ── Load Logo ──
-        const logoUrl = "https://toyoxpress.com/wp-content/uploads/2017/07/Ai-LOGO-TOYOXPRESS.png";
         
         const finishPdf = (buffer: Buffer | null) => {
             // ── Header ──
@@ -209,18 +208,16 @@ function generarPDFBuffer(
             doc.end();
         };
 
-        const axios = require('axios');
-        axios.get(logoUrl, { responseType: 'arraybuffer' })
-            .then((response: any) => {
-                const logo = Buffer.from(response.data);
-                doc.on('end', () => resolve({ pdf: Buffer.concat(chunks), logo }));
-                finishPdf(logo);
-            })
-            .catch((err: any) => {
-                logger.warn('⚠️ No se pudo descargar el logo para el PDF, continuando sin él:', err.message);
-                doc.on('end', () => resolve({ pdf: Buffer.concat(chunks), logo: null }));
-                finishPdf(null);
-            });
+        try {
+            const logoPath = path.join(__dirname, '../assets/toyoxpress-logo.png');
+            const logo = fs.readFileSync(logoPath);
+            doc.on('end', () => resolve({ pdf: Buffer.concat(chunks), logo }));
+            finishPdf(logo);
+        } catch (err: any) {
+            logger.warn('⚠️ No se pudo leer el logo local para el PDF, continuando sin él:', err.message);
+            doc.on('end', () => resolve({ pdf: Buffer.concat(chunks), logo: null }));
+            finishPdf(null);
+        }
     });
 }
 
