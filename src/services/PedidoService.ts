@@ -80,7 +80,7 @@ function generarPDFBuffer(
         doc.on('error', reject);
 
         // ── Load Logo ──
-        
+
         const finishPdf = (buffer: Buffer | null) => {
             // ── Header ──
             const startY = 24;
@@ -223,8 +223,8 @@ function generarPDFBuffer(
 // ─── Mailer ───────────────────────────────────────────────────────────────────
 
 async function enviarEmails(pdfBuffer: Buffer, correlativo: number, clienteNombre: string, notaPedido: string, logoBuffer: Buffer | null) {
-    const apiKey = process.env.BREVO_API_KEY;
-    
+    const apiKey = (process.env.BREVO_API_KEY || '').replace(/['"]/g, '').trim();
+
     // Debug logger for API Key (not exposing full key)
     if (!apiKey) {
         logger.error('❌ [DEBUG] BREVO_API_KEY no detectada en environment variables.');
