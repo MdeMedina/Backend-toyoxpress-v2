@@ -9,7 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const API_KEY = process.env.BREVO_API_KEY || '';
 const FROM_EMAIL = process.env.SMTP_FROM || 'contacto@toyoxpress.com';
-const TO_EMAIL = process.argv[2] || process.env.SMTP_USER || 'pedidostoyoxpress@gmail.com';
+const TO_EMAIL = 'mamedina770@gmail.com';
 
 console.log('\n🚀 TEST BREVO HTTP API');
 console.log('─────────────────────────────────────────');
@@ -26,7 +26,7 @@ if (!API_KEY) {
 
 async function run() {
     console.log(`1️⃣  Enviando email de prueba via API HTTP...`);
-    
+
     const body = {
         sender: { name: 'ToyoXpress Test', email: FROM_EMAIL },
         to: [{ email: TO_EMAIL }],
