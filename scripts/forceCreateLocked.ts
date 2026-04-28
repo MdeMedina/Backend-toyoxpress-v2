@@ -24,7 +24,7 @@ async function forceCreateLockedSkus() {
 
     console.log(`Intentando forzar la creación de ${localProducts.length} productos...`);
 
-    const batchCreate = [];
+    const batchCreate: any[] = [];
     const createdIds: any[] = [];
 
     // Verificamos si los que dijeron "SKU no valido" es porque ya exiten (posiblemente borrados mal)
