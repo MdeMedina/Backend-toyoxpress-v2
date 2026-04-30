@@ -10,9 +10,11 @@ export interface IMovimiento extends Document {
     movimiento: 'ingreso' | 'egreso';
     concepto: string;
     bs: number;
+    change: number; // Exchange rate (Valor de cambio)
     zelle: number;
     efectivo: number;
     dolares: number;
+    otro: number; // Otro metodo de pago
     vueltoBs: number;
     vueltoDolar: number;
     vueltoEfectivo: number;
@@ -22,6 +24,8 @@ export interface IMovimiento extends Document {
     status: string;
     identificador?: string;
     vale?: string;
+    usuario_modifico?: string;
+    id_usuario_modifico?: string;
 }
 
 const MovimientoSchema: Schema = new Schema({
@@ -36,9 +40,11 @@ const MovimientoSchema: Schema = new Schema({
 
     // Refactored to Numbers to prevent string issues
     bs: { type: Number, default: 0 },
+    change: { type: Number, default: 0 },
     zelle: { type: Number, default: 0 },
     efectivo: { type: Number, default: 0 },
     dolares: { type: Number, default: 0 },
+    otro: { type: Number, default: 0 },
     vueltoBs: { type: Number, default: 0 },
     vueltoDolar: { type: Number, default: 0 },
     vueltoEfectivo: { type: Number, default: 0 },
@@ -49,6 +55,8 @@ const MovimientoSchema: Schema = new Schema({
     status: { type: String, default: 'completado' },
     identificador: { type: String },
     vale: { type: String },
+    usuario_modifico: { type: String },
+    id_usuario_modifico: { type: String },
     disabled: { type: Boolean, default: false }
 }, {
     timestamps: true // Adds createdAt and updatedAt automatically
