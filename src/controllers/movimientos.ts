@@ -14,14 +14,11 @@ export const createMovimiento = async (req: Request, res: Response): Promise<voi
             zelle = 0,
             efectivo = 0,
             dolares = 0,
-            otro = 0,
-            change = 0,
             vueltoBs = 0,
             vueltoDolar = 0,
             vueltoEfectivo = 0,
             monto = 0,
-            fechaString,
-            vale
+            fechaString
         } = req.body;
 
         // Check for duplicate vale if provided
@@ -73,7 +70,7 @@ export const createMovimiento = async (req: Request, res: Response): Promise<voi
             fechaString,
             fecha: fechaString ? new Date(fechaString + "T12:00:00Z") : undefined,
             status: isCajaChica ? 'aprobado' : 'pendiente',
-            vale: isCajaChica ? identificador : (vale || undefined),
+            vale: isCajaChica ? identificador : undefined,
             disabled: false
         });
 
@@ -96,7 +93,7 @@ export const getMovimientos = async (req: Request, res: Response): Promise<void>
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 50;
         const sortBy = (req.query.sortBy as string) || 'id';
-        const sortOrder = (req.query.sortOrder as string) || 'asc';
+        const sortOrder = (req.query.sortOrder as string) || 'desc';
 
         // Build Filters
         const query: any = { disabled: { $ne: true } };
@@ -173,12 +170,14 @@ export const getMovimientos = async (req: Request, res: Response): Promise<void>
 
         if (req.query.tipoPago) {
             const pagoType = req.query.tipoPago as string;
-            if (['bs', 'zelle', 'efectivo', 'dolares', 'otro'].includes(pagoType)) {
+            if (['bs', 'zelle', 'efectivo', 'dolares'].includes(pagoType)) {
                 query[pagoType] = { $gt: 0 };
             }
         }
 
-        const queryTotals = { ...query, ...(andConditions.length > 0 ? { $and: andConditions } : {}) };
+        // queryTotals for aggregate should ONLY be affected by 'cuenta' filter as per user request
+        const queryTotals: any = { disabled: { $ne: true } };
+        if (req.query.cuenta) queryTotals.cuenta = req.query.cuenta;
 
         if (req.query.fechaInicio || req.query.fechaCierre) {
             const dateQuery: any = {};
@@ -243,7 +242,7 @@ export const getMovimientos = async (req: Request, res: Response): Promise<void>
         }
 
         const [totalsAggr] = await Movimiento.aggregate([
-            { $match: totalsMatch },
+            { $match: queryTotals },
             {
                 $group: {
                     _id: null,
@@ -293,11 +292,8 @@ export const getMovimientos = async (req: Request, res: Response): Promise<void>
             }
         ]);
 
-        const canSeeSaldoTotal = user?.permissions?.verSaldoTotal === true || user?.name === 'admin';
-        const canSeeCajaChica = user?.permissions?.verCajaChica === true || user?.name === 'admin';
-
-        const saldo_total = canSeeSaldoTotal ? (totalsAggr ? totalsAggr.saldo_total : 0) : 0;
-        const caja_chica = canSeeCajaChica ? (totalsAggr ? totalsAggr.caja_chica : 0) : 0;
+        const saldo_total = totalsAggr ? totalsAggr.saldo_total : 0;
+        const caja_chica = totalsAggr ? totalsAggr.caja_chica : 0;
         const totalPages = Math.ceil(total / limit) || 1;
 
         res.status(200).json({ success: true, total, totalPages, movimientos, saldo_total, caja_chica });
@@ -375,7 +371,6 @@ export const getUsuariosDistintos = async (req: Request, res: Response): Promise
 export const updateMovimiento = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
-        const activeUser = (req as any).user;
         const {
             usuario,
             cuenta,
@@ -385,14 +380,11 @@ export const updateMovimiento = async (req: Request, res: Response): Promise<voi
             zelle = 0,
             efectivo = 0,
             dolares = 0,
-            otro = 0,
-            change = 0,
             vueltoBs = 0,
             vueltoDolar = 0,
             vueltoEfectivo = 0,
             monto = 0,
-            fechaString,
-            vale
+            fechaString
         } = req.body;
 
         if (vale && vale.trim() !== "") {
@@ -412,8 +404,7 @@ export const updateMovimiento = async (req: Request, res: Response): Promise<voi
         }
 
         const updatedData: any = {
-            usuario_modifico: activeUser?.name || "Admin",
-            id_usuario_modifico: activeUser?.id_usuario || "123",
+            usuario,
             cuenta,
             movimiento,
             concepto,
