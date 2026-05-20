@@ -90,27 +90,48 @@ export const handleSQSProductMessage = async (req: Request, res: Response) => {
 
             // Evaluamos respuestas de la Fase 1
             if (firstData.create) {
-                firstData.create.forEach((res: any, index: number) => {
+                for (let index = 0; index < firstData.create.length; index++) {
+                    const res = firstData.create[index];
+                    const originalItem = prunedPayload[index];
+
                     if (res.error) {
-                        // Verificamos el código exacto de duplicidad de WooCommerce
-                        if (res.error.code === 'product_invalid_sku') {
-                            if (res.error.data?.resource_id) {
-                                // Era un duplicado clásico; interceptamos el ID real de WordPress
-                                const originalItem = prunedPayload[index];
-                                originalItem.id = res.error.data.resource_id;
-                                updateArray.push(originalItem);
-                            } else {
-                                // WooCommerce race condition (ya se está procesando). 
-                                // Esto pasa cuando el mismo Excel tiene el mismo SKU 2 veces enviadas al mismo tiempo.
-                                failedDetails.push(`CREATE DUPLICATE/RACE [SKU ${prunedPayload[index]?.sku || '???'}]: ${res.error.message}`);
-                            }
+                        let recoveredId = null;
+
+                        if (res.error.code === 'product_invalid_sku' && res.error.data?.resource_id) {
+                            // Era un duplicado clásico; interceptamos el ID real de WordPress
+                            recoveredId = res.error.data.resource_id;
                         } else {
-                            failedDetails.push(`CREATE FAIL [SKU ${prunedPayload[index]?.sku || '???'}]: ${res.error.message}`);
+                            // El producto dio error, puede ser un glitch "ya se está procesando" o un SKU inválido sin ID.
+                            // Intentamos recuperar el ID de WooCommerce buscando manualmente por SKU.
+                            try {
+                                logger.info(`[Worker - BG] Recuperando ID para SKU trabado: ${originalItem.sku}`);
+                                const checkRes = await WooCommerce.get("products", { sku: originalItem.sku });
+                                if (checkRes.data && checkRes.data.length > 0) {
+                                    recoveredId = checkRes.data[0].id;
+                                    logger.info(`[Worker - BG] ID recuperado activo: ${recoveredId}`);
+                                } else {
+                                    // Búsqueda en la papelera (trash)
+                                    const trashRes = await WooCommerce.get("products", { sku: originalItem.sku, status: "trash" });
+                                    if (trashRes.data && trashRes.data.length > 0) {
+                                        recoveredId = trashRes.data[0].id;
+                                        logger.info(`[Worker - BG] ID recuperado en papelera: ${recoveredId}`);
+                                    }
+                                }
+                            } catch (e: any) {
+                                logger.error(`[Worker - BG] Error al recuperar ID para ${originalItem.sku}:`, e.response?.data || e.message);
+                            }
+                        }
+
+                        if (recoveredId) {
+                            originalItem.id = recoveredId;
+                            updateArray.push(originalItem);
+                        } else {
+                            failedDetails.push(`CREATE FAIL [SKU ${originalItem?.sku || '???'}]: ${res.error.message}`);
                         }
                     } else {
-                        createdDetails.push(`SKU: ${prunedPayload[index]?.sku} (${prunedPayload[index]?.name})`);
+                        createdDetails.push(`SKU: ${originalItem?.sku} (${originalItem?.name})`);
                     }
-                });
+                }
             }
 
             // Fase 2: Actualizar los que Woocommerce rechazó por ser duplicados
@@ -183,9 +204,9 @@ export const handleSQSProductMessage = async (req: Request, res: Response) => {
                 latestChunkInfo: `Chunk #${chunkIndex} processado: C(${createdCount}) U(${updatedCount}) F(${failedCount})`,
                 latestChunkDetails: {
                     chunkIndex,
-                    created: createdDetails,
-                    updated: updatedDetails,
-                    failed: failedDetails
+                    createdDetails,
+                    updatedDetails,
+                    failedDetails
                 }
             });
 
@@ -204,8 +225,14 @@ export const handleSQSProductMessage = async (req: Request, res: Response) => {
                 }
             });
 
+            const currentJob = await SyncJob.findById(jobId).lean();
             io.emit('sync_progress', {
                 jobId,
+                totalChunks: currentJob?.totalChunks || 0,
+                chunksProcessed: currentJob?.chunksProcessed || 0,
+                totalSKUs: currentJob?.totalSKUs || 0,
+                status: currentJob?.status || 'failed',
+                metrics: currentJob?.metrics || { created: 0, updated: 0, failed: 0 },
                 error: true,
                 chunkIndex,
                 message: "Un paquete no pudo ser enviado a WooCommerce (Timeout / Caída)."

@@ -54,7 +54,9 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
                 verClientes: true,
                 verExcel: true,
                 cargarProductos: true,
-                verPedidos: true
+                verPedidos: true,
+                verCajaChica: true,
+                verSaldoTotal: true
             };
         }
 
@@ -241,4 +243,8 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
         console.error("Update User Error:", error);
         res.status(500).json({ success: false, message: 'Error actualizando usuario' });
     }
+};
+
+export const verifySession = async (req: Request, res: Response): Promise<void> => {
+    res.status(200).json({ success: true, message: 'Sesión activa y horario permitido' });
 };
